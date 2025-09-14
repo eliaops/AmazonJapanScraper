@@ -41,7 +41,7 @@ jobs:
         
     - name: Build executable
       run: |
-        python build_simple.py
+        python build_safe.py
         
     - name: Verify build
       run: |

@@ -10,23 +10,27 @@ from pathlib import Path
 
 def run_command(command, description):
     """运行命令并处理错误"""
-    print(f"\n🔄 {description}...")
-    print(f"执行命令: {command}")
+    print(f"\n[INFO] {description}...")
+    print(f"Command: {command}")
     
     try:
+        # 在Windows上使用cp1252编码，其他系统使用utf-8
+        encoding = 'cp1252' if sys.platform == 'win32' else 'utf-8'
         result = subprocess.run(command, shell=True, check=True, 
-                              capture_output=True, text=True, encoding='utf-8')
-        print(f"✅ {description} 成功完成")
+                              capture_output=True, text=True, 
+                              encoding=encoding, errors='replace')
+        print(f"[SUCCESS] {description} completed")
         if result.stdout:
-            print(f"输出: {result.stdout}")
+            print(f"Output: {result.stdout}")
         return True
     except subprocess.CalledProcessError as e:
-        print(f"❌ {description} 失败")
-        print(f"错误代码: {e.returncode}")
-        print(f"错误输出: {e.stderr}")
+        print(f"[ERROR] {description} failed")
+        print(f"Exit code: {e.returncode}")
+        if e.stderr:
+            print(f"Error output: {e.stderr}")
         return False
     except Exception as e:
-        print(f"❌ {description} 出现异常: {e}")
+        print(f"[ERROR] {description} exception: {e}")
         return False
 
 def clean_build_dirs():
@@ -34,28 +38,28 @@ def clean_build_dirs():
     dirs_to_clean = ['build', 'dist', '__pycache__', 'release']
     for dir_name in dirs_to_clean:
         if os.path.exists(dir_name):
-            print(f"🧹 清理目录: {dir_name}")
+            print(f"[CLEAN] Removing directory: {dir_name}")
             shutil.rmtree(dir_name)
 
 def build_executable():
     """构建可执行文件"""
-    print("🚀 开始构建Windows可执行文件（简化版）...")
+    print("Building Windows executable (simplified version)...")
     print("="*60)
     
     # 检查Python环境
-    print(f"Python版本: {sys.version}")
-    print(f"当前工作目录: {os.getcwd()}")
+    print(f"Python version: {sys.version}")
+    print(f"Current directory: {os.getcwd()}")
     
     # 清理构建目录
     clean_build_dirs()
     
     # 检查主文件
     if not os.path.exists('main.py'):
-        print("❌ 未找到main.py文件")
+        print("[ERROR] main.py file not found")
         return False
     
     # 检查依赖
-    print("\n📦 检查依赖包...")
+    print("\n[CHECK] Checking dependencies...")
     required_packages = [
         'pyinstaller',
         'requests', 
@@ -69,14 +73,14 @@ def build_executable():
     for package in required_packages:
         try:
             __import__(package.replace('-', '_'))
-            print(f"✅ {package}")
+            print(f"[OK] {package}")
         except ImportError:
-            print(f"❌ {package} (缺失)")
+            print(f"[MISSING] {package}")
             missing_packages.append(package)
     
     if missing_packages:
-        print(f"\n⚠️ 缺失依赖包: {', '.join(missing_packages)}")
-        print("请运行以下命令安装:")
+        print(f"\n[WARNING] Missing packages: {', '.join(missing_packages)}")
+        print("Please install with:")
         print(f"pip install {' '.join(missing_packages)}")
         return False
     
@@ -106,16 +110,16 @@ def build_executable():
     
     build_cmd_str = " ".join(build_command)
     
-    if not run_command(build_cmd_str, "PyInstaller构建"):
+    if not run_command(build_cmd_str, "PyInstaller Build"):
         return False
     
     # 检查构建结果
     exe_path = "dist/Amazon_Japan_Scraper_v2.0.exe"
     if os.path.exists(exe_path):
         file_size = os.path.getsize(exe_path) / (1024 * 1024)  # MB
-        print(f"\n🎉 构建成功!")
-        print(f"📁 可执行文件位置: {os.path.abspath(exe_path)}")
-        print(f"📊 文件大小: {file_size:.1f} MB")
+        print(f"\n[SUCCESS] Build completed!")
+        print(f"[INFO] Executable location: {os.path.abspath(exe_path)}")
+        print(f"[INFO] File size: {file_size:.1f} MB")
         
         # 创建发布目录
         release_dir = "release"
@@ -127,49 +131,49 @@ def build_executable():
         shutil.copy2(exe_path, f"{release_dir}/Amazon_Japan_Scraper_v2.0.exe")
         
         # 创建说明文件
-        readme_content = """# Amazon Japan 卖家信息提取工具 v2.0
+        readme_content = """# Amazon Japan Seller Information Extractor v2.0
 
-## 使用方法
-1. 双击运行 Amazon_Japan_Scraper_v2.0.exe
-2. 选择商品类目或输入自定义关键词
-3. 设置搜索页数和最大产品数
-4. 点击"开始搜索"按钮
-5. 等待搜索完成后，点击"导出数据"保存结果
+## How to Use
+1. Double-click Amazon_Japan_Scraper_v2.0.exe to run
+2. Select product category or enter custom keywords
+3. Set search pages and maximum products
+4. Click "Start Search" button
+5. After search completes, click "Export Data" to save results
 
-## 功能特点
-- 🛒 支持Amazon日本站产品搜索
-- 🌍 多语言卖家信息提取（中英日韩）
-- 📊 详细卖家信息提取
-- 📋 数据导出（Excel/CSV格式）
-- 🎨 现代化用户界面
+## Features
+- Amazon Japan product search support
+- Multi-language seller information extraction (Chinese/English/Japanese/Korean)
+- Detailed seller information extraction
+- Data export (Excel/CSV formats)
+- Modern user interface
 
-## 系统要求
-- Windows 10 或更高版本
-- 网络连接
+## System Requirements
+- Windows 10 or higher
+- Internet connection
 
-## 注意事项
-- 请合理使用，避免频繁请求
-- 数据仅供学习和研究使用
-- 遵守网站使用条款
+## Notes
+- Please use responsibly, avoid frequent requests
+- Data for learning and research purposes only
+- Follow website terms of service
 
-版本: 2.0.0
+Version: 2.0.0
 """
         
         with open(f"{release_dir}/README.txt", 'w', encoding='utf-8') as f:
             f.write(readme_content)
         
-        print(f"📦 发布包已创建: {os.path.abspath(release_dir)}")
+        print(f"[INFO] Release package created: {os.path.abspath(release_dir)}")
         return True
     else:
-        print("❌ 构建失败，未找到可执行文件")
+        print("[ERROR] Build failed, executable not found")
         return False
 
 if __name__ == "__main__":
     success = build_executable()
     
     if success:
-        print("\n🎉 构建完成!")
-        print("📁 请查看 release 目录获取最终的可执行文件")
+        print("\n[SUCCESS] Build completed!")
+        print("[INFO] Check the release directory for the final executable")
     else:
-        print("\n❌ 构建失败!")
+        print("\n[ERROR] Build failed!")
         sys.exit(1)
