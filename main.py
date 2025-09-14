@@ -1042,17 +1042,17 @@ class AmazonScraperGUI:
         ).grid(row=1, column=0, sticky=tk.W, pady=8, padx=(0, 10))
         
         self.keyword_var = tk.StringVar()
-        self.keyword_entry = ttk.Entry(main_frame, textvariable=self.keyword_var, width=30)
+        self.keyword_entry = ttk.Entry(config_frame, textvariable=self.keyword_var, width=30)
         self.keyword_entry.grid(row=2, column=1, sticky=(tk.W, tk.E), pady=5, padx=(10, 0))
         
         # 建议关键词标签
         self.suggestion_var = tk.StringVar(value="建议: コンピュータ, パソコン, PC")
-        suggestion_label = ttk.Label(main_frame, textvariable=self.suggestion_var, 
+        suggestion_label = ttk.Label(config_frame, textvariable=self.suggestion_var, 
                                    font=('Arial', 8), foreground='gray')
         suggestion_label.grid(row=3, column=1, sticky=tk.W, padx=(10, 0))
         
         # 搜索设置框架
-        settings_frame = ttk.LabelFrame(main_frame, text="搜索设置", padding="5")
+        settings_frame = ttk.LabelFrame(config_frame, text="搜索设置", padding="5")
         settings_frame.grid(row=4, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=10)
         
         # 页数设置
@@ -1069,7 +1069,7 @@ class AmazonScraperGUI:
         products_spinbox.grid(row=0, column=3, sticky=tk.W, pady=2, padx=(10, 0))
         
         # 控制按钮
-        button_frame = ttk.Frame(main_frame)
+        button_frame = ttk.Frame(parent)
         button_frame.grid(row=5, column=0, columnspan=3, pady=20)
         
         self.start_button = ttk.Button(button_frame, text="开始提取", command=self.start_scraping)
@@ -1086,13 +1086,13 @@ class AmazonScraperGUI:
         
         # 进度条
         self.progress_var = tk.StringVar(value="准备就绪")
-        ttk.Label(main_frame, textvariable=self.progress_var).grid(row=6, column=0, columnspan=3, sticky=tk.W)
+        ttk.Label(parent, textvariable=self.progress_var).grid(row=6, column=0, columnspan=3, sticky=tk.W)
         
-        self.progress_bar = ttk.Progressbar(main_frame, mode='indeterminate')
+        self.progress_bar = ttk.Progressbar(parent, mode='indeterminate')
         self.progress_bar.grid(row=7, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=5)
         
         # 结果显示区域
-        result_frame = ttk.LabelFrame(main_frame, text="提取结果", padding="5")
+        result_frame = ttk.LabelFrame(parent, text="提取结果", padding="5")
         result_frame.grid(row=8, column=0, columnspan=3, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(10, 0))
         result_frame.columnconfigure(0, weight=1)
         result_frame.rowconfigure(0, weight=1)
@@ -1118,7 +1118,7 @@ class AmazonScraperGUI:
         
         # 状态栏
         self.status_var = tk.StringVar(value="就绪")
-        status_bar = ttk.Label(main_frame, textvariable=self.status_var, relief=tk.SUNKEN)
+        status_bar = ttk.Label(parent, textvariable=self.status_var, relief=tk.SUNKEN)
         status_bar.grid(row=9, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(10, 0))
     
     def on_category_changed(self, event=None):
