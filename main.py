@@ -21,6 +21,10 @@ from tkinter.scrolledtext import ScrolledText
 import threading
 from queue import Queue
 import re
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import gc
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 class AmazonJapanScraper:
     def __init__(self):
@@ -35,6 +39,24 @@ class AmazonJapanScraper:
             'Upgrade-Insecure-Requests': '1',
         }
         self.session.headers.update(self.headers)
+        
+        # 配置连接池和重试策略
+        retry_strategy = Retry(
+            total=3,
+            backoff_factor=1,
+            status_forcelist=[429, 500, 502, 503, 504],
+        )
+        adapter = HTTPAdapter(
+            pool_connections=10,
+            pool_maxsize=20,
+            max_retries=retry_strategy
+        )
+        self.session.mount("http://", adapter)
+        self.session.mount("https://", adapter)
+        
+        # 性能配置
+        self.max_concurrent_requests = 5  # 并发请求数
+        self.request_delay_range = (0.5, 1.5)  # 缩短延迟时间
         
         # 商品类目映射 - 基于实际亚马逊日本站分类
         self.categories = {
@@ -198,6 +220,80 @@ class AmazonJapanScraper:
             if category in key or key in category:
                 return keywords
         return []
+    
+    def get_seller_info_batch(self, products, progress_callback=None, stop_flag=None):
+        """批量并发获取卖家信息"""
+        results = []
+        completed = 0
+        total = len(products)
+        
+        def fetch_single_seller(product):
+            try:
+                if stop_flag and not stop_flag():
+                    return None
+                    
+                # 随机延迟
+                time.sleep(random.uniform(*self.request_delay_range))
+                seller_info = self.get_seller_info(product['url'])
+                
+                # 组合产品和卖家信息
+                result = {
+                    'product_title': product['title'],
+                    'price': product['price'],
+                    'product_url': product['url'],
+                    'seller_name': seller_info.get('seller_name', '未知') if seller_info else '未知',
+                    'business_name': seller_info.get('business_name', '') if seller_info else '',
+                    'store_name': seller_info.get('store_name', '') if seller_info else '',
+                    'phone': seller_info.get('phone', '') if seller_info else '',
+                    'address': seller_info.get('address', '') if seller_info else '',
+                    'representative': seller_info.get('representative', '') if seller_info else '',
+                    'seller_url': seller_info.get('seller_url', '') if seller_info else ''
+                }
+                return result
+            except Exception as e:
+                print(f"获取卖家信息失败 {product.get('title', 'Unknown')}: {e}")
+                return {
+                    'product_title': product.get('title', '未知'),
+                    'price': product.get('price', ''),
+                    'product_url': product.get('url', ''),
+                    'seller_name': '获取失败',
+                    'business_name': '',
+                    'store_name': '',
+                    'phone': '',
+                    'address': '',
+                    'representative': '',
+                    'seller_url': ''
+                }
+        
+        # 使用线程池并发处理
+        with ThreadPoolExecutor(max_workers=self.max_concurrent_requests) as executor:
+            # 提交所有任务
+            future_to_product = {executor.submit(fetch_single_seller, product): product for product in products}
+            
+            # 收集结果
+            for future in as_completed(future_to_product):
+                product = future_to_product[future]
+                try:
+                    if stop_flag and not stop_flag():
+                        break
+                        
+                    result = future.result()
+                    if result:
+                        results.append(result)
+                    completed += 1
+                    
+                    # 更新进度
+                    if progress_callback:
+                        progress_callback(completed, total, result)
+                        
+                except Exception as e:
+                    print(f"处理产品失败 {product.get('title', 'Unknown')}: {e}")
+                    completed += 1
+                    
+                    if progress_callback:
+                        progress_callback(completed, total, None)
+        
+        return results
     
     def extract_product_info(self, product_element):
         """从产品元素中提取基本信息"""
@@ -1064,9 +1160,22 @@ class AmazonScraperGUI:
         # 产品数量设置
         ttk.Label(settings_frame, text="最大产品数:").grid(row=0, column=2, sticky=tk.W, pady=2, padx=(20, 0))
         self.max_products_var = tk.StringVar(value="500")
-        products_spinbox = ttk.Spinbox(settings_frame, from_=50, to=1000, increment=50, 
+        products_spinbox = ttk.Spinbox(settings_frame, from_=50, to=5000, increment=50, 
                                      textvariable=self.max_products_var, width=10)
         products_spinbox.grid(row=0, column=3, sticky=tk.W, pady=2, padx=(10, 0))
+        
+        # 性能设置
+        ttk.Label(settings_frame, text="并发数:").grid(row=1, column=0, sticky=tk.W, pady=2)
+        self.concurrent_var = tk.StringVar(value="5")
+        concurrent_spinbox = ttk.Spinbox(settings_frame, from_=1, to=10, increment=1, 
+                                       textvariable=self.concurrent_var, width=10)
+        concurrent_spinbox.grid(row=1, column=1, sticky=tk.W, pady=2, padx=(10, 0))
+        
+        ttk.Label(settings_frame, text="延迟(秒):").grid(row=1, column=2, sticky=tk.W, pady=2, padx=(20, 0))
+        self.delay_var = tk.StringVar(value="1.0")
+        delay_spinbox = ttk.Spinbox(settings_frame, from_=0.5, to=5.0, increment=0.5, 
+                                  textvariable=self.delay_var, width=10)
+        delay_spinbox.grid(row=1, column=3, sticky=tk.W, pady=2, padx=(10, 0))
         
         # 控制按钮
         button_frame = ttk.Frame(parent)
@@ -1164,6 +1273,19 @@ class AmazonScraperGUI:
             if not messagebox.askyesno("确认", f"您要提取 {max_products} 个产品，这可能需要很长时间。是否继续？"):
                 return
         
+        # 获取性能配置并更新爬虫设置
+        try:
+            concurrent_requests = int(self.concurrent_var.get())
+            delay_time = float(self.delay_var.get())
+            
+            # 更新爬虫配置
+            self.scraper.max_concurrent_requests = concurrent_requests
+            self.scraper.request_delay_range = (delay_time * 0.5, delay_time * 1.5)
+        except (ValueError, AttributeError):
+            # 使用默认值
+            self.scraper.max_concurrent_requests = 5
+            self.scraper.request_delay_range = (0.5, 1.5)
+        
         self.is_scraping = True
         self.start_button.config(state=tk.DISABLED)
         self.stop_button.config(state=tk.NORMAL)
@@ -1187,7 +1309,7 @@ class AmazonScraperGUI:
         self.scraping_thread.start()
     
     def scraping_worker(self, category, pages, max_products, custom_keyword):
-        """爬虫工作线程"""
+        """优化的爬虫工作线程 - 支持并发处理"""
         try:
             # 搜索产品
             self.update_status("正在搜索产品...")
@@ -1199,53 +1321,51 @@ class AmazonScraperGUI:
                 products = self.scraper.search_products_by_category(category, pages, max_products)
             
             total_products = len(products)
-            self.update_status(f"找到 {total_products} 个产品，开始提取卖家信息...")
+            self.update_status(f"找到 {total_products} 个产品，开始并发提取卖家信息...")
             
             if total_products == 0:
                 self.root.after(0, self.scraping_finished, 0)
                 return
             
-            results = []
+            # 重置进度条为确定模式
+            self.root.after(0, lambda: self.progress_bar.configure(mode='determinate', maximum=total_products, value=0))
+            
             successful_extractions = 0
             
-            for i, product in enumerate(products):
-                if not self.is_scraping:  # 检查是否被停止
-                    break
+            def progress_callback(completed, total, result):
+                """进度回调函数"""
+                nonlocal successful_extractions
                 
-                progress_percent = int((i + 1) / total_products * 100)
-                self.update_status(f"正在处理第 {i+1}/{total_products} 个产品 ({progress_percent}%): {product['title'][:30]}...")
+                if result:
+                    # 更新UI - 添加结果到表格
+                    self.root.after(0, self.add_result_to_tree, result)
+                    
+                    # 统计成功提取的卖家信息
+                    if result.get('seller_name', '未知') not in ['未知', '获取失败']:
+                        successful_extractions += 1
                 
-                # 获取卖家信息
-                seller_info = self.scraper.get_seller_info(product['url'])
+                # 更新进度条和状态
+                progress_percent = int(completed / total * 100)
+                self.root.after(0, lambda: self.progress_bar.configure(value=completed))
+                self.update_status(f"已处理 {completed}/{total} 个产品 ({progress_percent}%) - 成功提取 {successful_extractions} 个卖家信息")
                 
-                result = {
-                    'product_title': product['title'],
-                    'price': product['price'],
-                    'product_url': product['url'],
-                    'seller_name': seller_info.get('seller_name', '未知') if seller_info else '未知',
-                    'business_name': seller_info.get('business_name', '') if seller_info else '',
-                    'store_name': seller_info.get('store_name', '') if seller_info else '',
-                    'phone': seller_info.get('phone', '') if seller_info else '',
-                    'address': seller_info.get('address', '') if seller_info else '',
-                    'representative': seller_info.get('representative', '') if seller_info else '',
-                    'seller_url': seller_info.get('seller_url', '') if seller_info else ''
-                }
-                
-                results.append(result)
-                
-                # 更新UI
-                self.root.after(0, self.add_result_to_tree, result)
-                
-                # 统计成功提取的卖家信息
-                if seller_info and seller_info.get('seller_name', '未知') != '未知':
-                    successful_extractions += 1
-                
-                # 每10个产品更新一次状态
-                if (i + 1) % 10 == 0:
-                    self.update_status(f"已处理 {i+1}/{total_products} 个产品，成功提取 {successful_extractions} 个卖家信息")
-                
-                # 随机延迟
-                time.sleep(random.uniform(2, 4))
+                # 定期清理内存
+                if completed % 50 == 0:
+                    gc.collect()
+            
+            def stop_flag():
+                """停止标志检查"""
+                return self.is_scraping
+            
+            # 使用批量并发处理
+            results = self.scraper.get_seller_info_batch(
+                products, 
+                progress_callback=progress_callback,
+                stop_flag=stop_flag
+            )
+            
+            # 过滤掉None结果
+            results = [r for r in results if r is not None]
             
             self.results = results
             self.root.after(0, self.scraping_finished, len(results), successful_extractions)
