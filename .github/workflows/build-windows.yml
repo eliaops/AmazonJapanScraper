@@ -1,0 +1,167 @@
+name: Build Windows Executable
+
+on:
+  push:
+    branches: [ main, master ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+        
+    - name: Cache pip dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~\AppData\Local\pip\Cache
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+          
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pyinstaller
+        
+    - name: Build executable
+      run: |
+        python build_windows.py
+        
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: Amazon-Japan-Scraper-Windows
+        path: release/
+        retention-days: 30
+        
+    - name: Create Release (on tag)
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          release/Amazon_Japan_Scraper_v2.0.exe
+          release/README.txt
+        body: |
+          ## Amazon Japan 卖家信息提取工具 v2.0
+          
+          ### 🆕 新功能
+          - 🌍 多语言卖家信息提取支持（中英日韩）
+          - 🎨 全新现代化用户界面
+          - 📊 增强的数据提取能力
+          - 🔄 智能重复卖家过滤
+          - 📋 改进的结果展示和导出
+          
+          ### 📦 下载说明
+          - 下载 `Amazon_Japan_Scraper_v2.0.exe` 文件
+          - 双击运行即可使用，无需安装
+          - 支持 Windows 10 及以上版本
+          
+          ### 🛠️ 使用方法
+          1. 运行程序
+          2. 选择商品类目或输入关键词
+          3. 设置搜索参数
+          4. 开始搜索并导出结果
+          
+          ### ⚠️ 注意事项
+          - 请合理使用，遵守网站使用条款
+          - 数据仅供学习和研究使用
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        
+  build-installer:
+    runs-on: windows-latest
+    needs: build-windows
+    if: startsWith(github.ref, 'refs/tags/')
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Download build artifacts
+      uses: actions/download-artifact@v3
+      with:
+        name: Amazon-Japan-Scraper-Windows
+        path: release/
+        
+    - name: Install NSIS
+      run: |
+        Invoke-WebRequest -Uri "https://nsis.sourceforge.io/Download" -OutFile "nsis-installer.exe"
+        Start-Process -FilePath "nsis-installer.exe" -ArgumentList "/S" -Wait
+        
+    - name: Create NSIS installer script
+      run: |
+        $nsisScript = @"
+        !define APP_NAME "Amazon Japan Scraper"
+        !define APP_VERSION "2.0.0"
+        !define APP_PUBLISHER "Amazon Scraper Team"
+        !define APP_EXE "Amazon_Japan_Scraper_v2.0.exe"
+        
+        Name "`${APP_NAME}"
+        OutFile "Amazon_Japan_Scraper_v2.0_Setup.exe"
+        InstallDir "`$PROGRAMFILES\`${APP_NAME}"
+        RequestExecutionLevel admin
+        
+        Page directory
+        Page instfiles
+        
+        Section "Install"
+          SetOutPath "`$INSTDIR"
+          File "release\Amazon_Japan_Scraper_v2.0.exe"
+          File "release\README.txt"
+          
+          CreateDirectory "`$SMPROGRAMS\`${APP_NAME}"
+          CreateShortCut "`$SMPROGRAMS\`${APP_NAME}\`${APP_NAME}.lnk" "`$INSTDIR\`${APP_EXE}"
+          CreateShortCut "`$DESKTOP\`${APP_NAME}.lnk" "`$INSTDIR\`${APP_EXE}"
+          
+          WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\`${APP_NAME}" "DisplayName" "`${APP_NAME}"
+          WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\`${APP_NAME}" "UninstallString" "`$INSTDIR\uninstall.exe"
+          WriteUninstaller "`$INSTDIR\uninstall.exe"
+        SectionEnd
+        
+        Section "Uninstall"
+          Delete "`$INSTDIR\Amazon_Japan_Scraper_v2.0.exe"
+          Delete "`$INSTDIR\README.txt"
+          Delete "`$INSTDIR\uninstall.exe"
+          RMDir "`$INSTDIR"
+          
+          Delete "`$SMPROGRAMS\`${APP_NAME}\`${APP_NAME}.lnk"
+          RMDir "`$SMPROGRAMS\`${APP_NAME}"
+          Delete "`$DESKTOP\`${APP_NAME}.lnk"
+          
+          DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\`${APP_NAME}"
+        SectionEnd
+        "@
+        
+        $nsisScript | Out-File -FilePath "installer.nsi" -Encoding UTF8
+        
+    - name: Build installer
+      run: |
+        & "C:\Program Files (x86)\NSIS\makensis.exe" installer.nsi
+        
+    - name: Upload installer
+      uses: actions/upload-artifact@v3
+      with:
+        name: Amazon-Japan-Scraper-Installer
+        path: Amazon_Japan_Scraper_v2.0_Setup.exe
+        
+    - name: Add installer to release
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: softprops/action-gh-release@v1
+      with:
+        files: Amazon_Japan_Scraper_v2.0_Setup.exe
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
