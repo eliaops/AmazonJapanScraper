@@ -109,7 +109,7 @@ exe = EXE(
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
-    upx=True,
+    upx=False,  # 禁用UPX压缩，避免兼容性问题
     upx_exclude=[],
     runtime_tmpdir=None,
     console=False,  # 设置为False隐藏控制台窗口
@@ -118,8 +118,6 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    version='version_info.txt',
-    icon='icon.ico' if os.path.exists('icon.ico') else None,
 )
 '''
     

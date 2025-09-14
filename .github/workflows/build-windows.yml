@@ -10,19 +10,19 @@ on:
 
 jobs:
   build-windows:
-    runs-on: windows-latest
+    runs-on: windows-2022
     
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
       
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
-        python-version: '3.9'
+        python-version: '3.11'
         
     - name: Cache pip dependencies
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: ~\AppData\Local\pip\Cache
         key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
@@ -35,12 +35,27 @@ jobs:
         pip install -r requirements.txt
         pip install pyinstaller
         
+    - name: Test imports
+      run: |
+        python -c "import tkinter; import requests; import bs4; import pandas; import openpyxl; print('All imports successful')"
+        
     - name: Build executable
       run: |
-        python build_windows.py
+        python build_simple.py
+        
+    - name: Verify build
+      run: |
+        if (Test-Path "release/Amazon_Japan_Scraper_v2.0.exe") {
+          Write-Host "✅ Executable built successfully"
+          $size = (Get-Item "release/Amazon_Japan_Scraper_v2.0.exe").Length / 1MB
+          Write-Host "📊 File size: $([math]::Round($size, 1)) MB"
+        } else {
+          Write-Host "❌ Executable not found"
+          exit 1
+        }
         
     - name: Upload build artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: Amazon-Japan-Scraper-Windows
         path: release/
@@ -79,89 +94,5 @@ jobs:
           - 数据仅供学习和研究使用
         draft: false
         prerelease: false
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        
-  build-installer:
-    runs-on: windows-latest
-    needs: build-windows
-    if: startsWith(github.ref, 'refs/tags/')
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      
-    - name: Download build artifacts
-      uses: actions/download-artifact@v3
-      with:
-        name: Amazon-Japan-Scraper-Windows
-        path: release/
-        
-    - name: Install NSIS
-      run: |
-        Invoke-WebRequest -Uri "https://nsis.sourceforge.io/Download" -OutFile "nsis-installer.exe"
-        Start-Process -FilePath "nsis-installer.exe" -ArgumentList "/S" -Wait
-        
-    - name: Create NSIS installer script
-      run: |
-        $nsisScript = @"
-        !define APP_NAME "Amazon Japan Scraper"
-        !define APP_VERSION "2.0.0"
-        !define APP_PUBLISHER "Amazon Scraper Team"
-        !define APP_EXE "Amazon_Japan_Scraper_v2.0.exe"
-        
-        Name "`${APP_NAME}"
-        OutFile "Amazon_Japan_Scraper_v2.0_Setup.exe"
-        InstallDir "`$PROGRAMFILES\`${APP_NAME}"
-        RequestExecutionLevel admin
-        
-        Page directory
-        Page instfiles
-        
-        Section "Install"
-          SetOutPath "`$INSTDIR"
-          File "release\Amazon_Japan_Scraper_v2.0.exe"
-          File "release\README.txt"
-          
-          CreateDirectory "`$SMPROGRAMS\`${APP_NAME}"
-          CreateShortCut "`$SMPROGRAMS\`${APP_NAME}\`${APP_NAME}.lnk" "`$INSTDIR\`${APP_EXE}"
-          CreateShortCut "`$DESKTOP\`${APP_NAME}.lnk" "`$INSTDIR\`${APP_EXE}"
-          
-          WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\`${APP_NAME}" "DisplayName" "`${APP_NAME}"
-          WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\`${APP_NAME}" "UninstallString" "`$INSTDIR\uninstall.exe"
-          WriteUninstaller "`$INSTDIR\uninstall.exe"
-        SectionEnd
-        
-        Section "Uninstall"
-          Delete "`$INSTDIR\Amazon_Japan_Scraper_v2.0.exe"
-          Delete "`$INSTDIR\README.txt"
-          Delete "`$INSTDIR\uninstall.exe"
-          RMDir "`$INSTDIR"
-          
-          Delete "`$SMPROGRAMS\`${APP_NAME}\`${APP_NAME}.lnk"
-          RMDir "`$SMPROGRAMS\`${APP_NAME}"
-          Delete "`$DESKTOP\`${APP_NAME}.lnk"
-          
-          DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\`${APP_NAME}"
-        SectionEnd
-        "@
-        
-        $nsisScript | Out-File -FilePath "installer.nsi" -Encoding UTF8
-        
-    - name: Build installer
-      run: |
-        & "C:\Program Files (x86)\NSIS\makensis.exe" installer.nsi
-        
-    - name: Upload installer
-      uses: actions/upload-artifact@v3
-      with:
-        name: Amazon-Japan-Scraper-Installer
-        path: Amazon_Japan_Scraper_v2.0_Setup.exe
-        
-    - name: Add installer to release
-      if: startsWith(github.ref, 'refs/tags/')
-      uses: softprops/action-gh-release@v1
-      with:
-        files: Amazon_Japan_Scraper_v2.0_Setup.exe
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

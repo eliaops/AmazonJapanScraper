@@ -67,7 +67,16 @@ set /p build_now="是否立即构建Windows可执行文件? (y/n): "
 if /i "%build_now%"=="y" (
     echo.
     echo 🚀 开始构建...
-    python build_windows.py
+    echo 选择构建方式:
+    echo 1. 简化构建 (推荐)
+    echo 2. 完整构建
+    set /p build_type="请选择 (1/2): "
+    
+    if "!build_type!"=="1" (
+        python build_simple.py
+    ) else (
+        python build_windows.py
+    )
     
     if errorlevel 1 (
         echo.
