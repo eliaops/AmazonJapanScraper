@@ -38,9 +38,17 @@ class UltimateAmazonScraper:
         self.base_url = "https://www.amazon.co.jp"
         self.session = requests.Session()
         
-        # 设置请求头
-        self.headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        # 智能User-Agent池 - 模拟不同浏览器和设备
+        self.user_agents = [
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Safari/605.1.15',
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/120.0',
+            'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        ]
+        
+        # 智能请求头配置
+        self.base_headers = {
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
             'Accept-Language': 'ja-JP,ja;q=0.9,en;q=0.8,zh-CN;q=0.7,zh;q=0.6',
             'Accept-Encoding': 'gzip, deflate, br',
@@ -50,14 +58,20 @@ class UltimateAmazonScraper:
             'Sec-Fetch-Mode': 'navigate',
             'Sec-Fetch-Site': 'none',
             'Cache-Control': 'max-age=0',
+            'DNT': '1',
         }
-        self.session.headers.update(self.headers)
         
-        # 配置连接池和重试策略
+        # 会话状态管理
+        self.session_initialized = False
+        self.last_request_time = 0
+        self.request_count = 0
+        self.current_user_agent_index = 0
+        
+        # 配置连接池和重试策略 - 优化503处理
         retry_strategy = Retry(
-            total=3,
-            backoff_factor=1,
-            status_forcelist=[429, 500, 502, 503, 504],
+            total=2,  # 减少重试次数
+            backoff_factor=2,  # 增加退避时间
+            status_forcelist=[429, 500, 502, 504],  # 移除503，直接失败而不重试
         )
         adapter = HTTPAdapter(
             pool_connections=20,
@@ -67,10 +81,15 @@ class UltimateAmazonScraper:
         self.session.mount("http://", adapter)
         self.session.mount("https://", adapter)
         
-        # 性能配置
-        self.max_concurrent_requests = 3  # 保守的并发数
-        self.request_delay_range = (1.0, 2.5)  # 更长的延迟确保稳定性
-        self.batch_size = 10  # 批处理大小
+        # 性能配置 - 智能化设置
+        self.max_concurrent_requests = 1  # 单线程避免检测
+        self.request_delay_range = (3.0, 8.0)  # 更人性化的延迟
+        self.batch_size = 3  # 更小的批处理大小
+        
+        # 智能反检测配置
+        self.max_requests_per_session = 20  # 每个会话最大请求数
+        self.session_cooldown_time = 30  # 会话冷却时间(秒)
+        self.user_agent_rotation_interval = 5  # User-Agent轮换间隔
         
         # 搜索优化配置
         self.search_strategies = [
@@ -104,6 +123,161 @@ class UltimateAmazonScraper:
         """确保保存目录存在"""
         if not os.path.exists(self.save_directory):
             os.makedirs(self.save_directory)
+    
+    def _initialize_session(self):
+        """智能会话初始化 - 模拟真实用户行为"""
+        if self.session_initialized:
+            return True
+            
+        try:
+            print("🔄 初始化智能会话...")
+            
+            # 1. 设置当前User-Agent
+            current_ua = self.user_agents[self.current_user_agent_index]
+            headers = self.base_headers.copy()
+            headers['User-Agent'] = current_ua
+            self.session.headers.update(headers)
+            
+            # 2. 先访问Amazon首页建立会话
+            print("   📱 访问Amazon首页...")
+            response = self.session.get(self.base_url, timeout=15)
+            
+            if response.status_code != 200:
+                print(f"   ❌ 首页访问失败: {response.status_code}")
+                return False
+                
+            # 3. 模拟用户浏览行为 - 访问几个常见页面
+            common_pages = [
+                '/gp/bestsellers',  # 畅销商品
+                '/gp/new-releases', # 新品发布
+            ]
+            
+            for page in common_pages:
+                time.sleep(random.uniform(2, 4))  # 人性化延迟
+                try:
+                    self.session.get(f"{self.base_url}{page}", timeout=10)
+                    print(f"   ✅ 访问页面: {page}")
+                except:
+                    pass  # 忽略错误，继续
+            
+            # 4. 等待一段时间模拟真实用户
+            wait_time = random.uniform(3, 6)
+            print(f"   ⏱️ 等待 {wait_time:.1f}秒...")
+            time.sleep(wait_time)
+            
+            self.session_initialized = True
+            self.request_count = 0
+            print("   ✅ 会话初始化完成")
+            return True
+            
+        except Exception as e:
+            print(f"   ❌ 会话初始化失败: {e}")
+            return False
+    
+    def _smart_request(self, url, params=None, **kwargs):
+        """智能请求方法 - 包含反检测机制"""
+        
+        # 检查是否需要初始化会话
+        if not self.session_initialized:
+            if not self._initialize_session():
+                raise Exception("会话初始化失败")
+        
+        # 检查是否需要轮换User-Agent
+        if self.request_count > 0 and self.request_count % self.user_agent_rotation_interval == 0:
+            self.current_user_agent_index = (self.current_user_agent_index + 1) % len(self.user_agents)
+            new_ua = self.user_agents[self.current_user_agent_index]
+            self.session.headers.update({'User-Agent': new_ua})
+            print(f"🔄 轮换User-Agent: {new_ua[:50]}...")
+        
+        # 检查是否需要重置会话
+        if self.request_count >= self.max_requests_per_session:
+            print(f"🔄 达到最大请求数({self.max_requests_per_session})，重置会话...")
+            self._reset_session()
+            if not self._initialize_session():
+                raise Exception("会话重置失败")
+        
+        # 智能延迟 - 基于上次请求时间
+        current_time = time.time()
+        if self.last_request_time > 0:
+            elapsed = current_time - self.last_request_time
+            min_delay = self.request_delay_range[0]
+            if elapsed < min_delay:
+                additional_delay = min_delay - elapsed + random.uniform(0, 2)
+                print(f"⏱️ 智能延迟: {additional_delay:.1f}秒")
+                time.sleep(additional_delay)
+        
+        # 执行请求
+        try:
+            # 添加随机化的请求头
+            headers = kwargs.get('headers', {})
+            if 'Referer' not in headers and self.request_count > 0:
+                headers['Referer'] = self.base_url
+            kwargs['headers'] = headers
+            
+            response = self.session.get(url, params=params, **kwargs)
+            
+            # 特殊处理503错误
+            if response.status_code == 503:
+                print("⚠️ 遇到503错误，启动智能恢复...")
+                self._handle_503_error()
+                # 重试一次
+                time.sleep(random.uniform(10, 20))
+                response = self.session.get(url, params=params, **kwargs)
+            
+            self.last_request_time = time.time()
+            self.request_count += 1
+            
+            return response
+            
+        except Exception as e:
+            print(f"❌ 智能请求失败: {e}")
+            raise
+    
+    def _reset_session(self):
+        """重置会话"""
+        self.session.close()
+        self.session = requests.Session()
+        
+        # 重新配置适配器
+        retry_strategy = Retry(
+            total=2,
+            backoff_factor=2,
+            status_forcelist=[429, 500, 502, 504],
+        )
+        adapter = HTTPAdapter(
+            pool_connections=20,
+            pool_maxsize=50,
+            max_retries=retry_strategy
+        )
+        self.session.mount("http://", adapter)
+        self.session.mount("https://", adapter)
+        
+        self.session_initialized = False
+        self.request_count = 0
+        print("🔄 会话已重置")
+    
+    def _handle_503_error(self):
+        """处理503错误的智能策略"""
+        print("🛡️ 启动503错误处理策略...")
+        
+        # 1. 轮换User-Agent
+        self.current_user_agent_index = (self.current_user_agent_index + 1) % len(self.user_agents)
+        new_ua = self.user_agents[self.current_user_agent_index]
+        self.session.headers.update({'User-Agent': new_ua})
+        print(f"   🔄 轮换User-Agent")
+        
+        # 2. 清除可能的追踪cookie
+        self.session.cookies.clear()
+        print("   🍪 清除cookies")
+        
+        # 3. 等待冷却时间
+        cooldown = random.uniform(self.session_cooldown_time, self.session_cooldown_time * 1.5)
+        print(f"   ❄️ 冷却等待: {cooldown:.1f}秒")
+        time.sleep(cooldown)
+        
+        # 4. 重置会话状态
+        self.session_initialized = False
+        print("   ✅ 503错误处理完成")
     
     def unlimited_search(self, keyword, progress_callback=None, stop_flag=None, save_callback=None):
         """
@@ -228,7 +402,8 @@ class UltimateAmazonScraper:
             
             search_url = f"{self.base_url}/s"
             
-            response = self.session.get(search_url, params=base_params, timeout=15)
+            # 使用智能请求方法
+            response = self._smart_request(search_url, params=base_params, timeout=15)
             response.raise_for_status()
             
             soup = BeautifulSoup(response.content, 'html.parser')
@@ -427,8 +602,8 @@ class UltimateAmazonScraper:
                     'fax': ''
                 }
             
-            # 第一步：获取产品页面
-            response = self.session.get(product_url, timeout=10)  # 减少超时时间
+            # 第一步：获取产品页面 - 使用智能请求
+            response = self._smart_request(product_url, timeout=10)
             response.raise_for_status()
             
             soup = BeautifulSoup(response.content, 'html.parser')
@@ -508,7 +683,7 @@ class UltimateAmazonScraper:
     def _get_detailed_seller_info_ultimate(self, seller_url):
         """终极版详细卖家信息提取"""
         try:
-            response = self.session.get(seller_url, timeout=15)
+            response = self._smart_request(seller_url, timeout=15)
             response.raise_for_status()
             
             soup = BeautifulSoup(response.content, 'html.parser')
