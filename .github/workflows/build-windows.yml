@@ -1,4 +1,4 @@
-name: Build Amazon Japan Scraper v3.0
+name: Build Amazon Japan Scraper v4.0
 
 on:
   push:
@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-simplified:
+  build-ultimate:
     runs-on: windows-2022
     
     steps:
@@ -39,18 +39,18 @@ jobs:
       run: |
         python -c "import tkinter; import requests; import bs4; import pandas; import openpyxl; print('All imports successful for v3.0')"
         
-    - name: Test simplified version
+    - name: Test ultimate version
       run: |
-        python -c "from main_simplified import SimplifiedAmazonScraper, SimplifiedScraperGUI; print('Simplified version imports successful')"
+        python -c "from main_ultimate import UltimateAmazonScraper, UltimateScraperGUI; print('Ultimate version imports successful')"
         
-    - name: Build simplified executable
+    - name: Build ultimate executable
       run: |
-        pyinstaller --onefile --windowed --name=Amazon_Japan_Scraper_v3.1_Enhanced --hidden-import=tkinter --hidden-import=tkinter.ttk --hidden-import=requests --hidden-import=bs4 --hidden-import=pandas --hidden-import=openpyxl --exclude-module=matplotlib --exclude-module=scipy --clean main_simplified.py
+        pyinstaller --onefile --windowed --name=Amazon_Japan_Scraper_v4.0_Ultimate --hidden-import=tkinter --hidden-import=tkinter.ttk --hidden-import=requests --hidden-import=bs4 --hidden-import=pandas --hidden-import=openpyxl --hidden-import=concurrent.futures --hidden-import=urllib3 --exclude-module=matplotlib --exclude-module=scipy --clean main_ultimate.py
         
     - name: Create release directory
       run: |
-        New-Item -ItemType Directory -Force -Path "release_simplified"
-        Copy-Item "dist\Amazon_Japan_Scraper_v3.1_Enhanced.exe" "release_simplified\"
+        New-Item -ItemType Directory -Force -Path "release_ultimate"
+        Copy-Item "dist\Amazon_Japan_Scraper_v4.0_Ultimate.exe" "release_ultimate\"
         
     - name: Create README for release
       run: |
@@ -85,9 +85,9 @@ jobs:
         
     - name: Verify simplified build
       run: |
-        if (Test-Path "release_simplified/Amazon_Japan_Scraper_v3.1_Enhanced.exe") {
-          Write-Host "✅ Enhanced v3.1 executable built successfully"
-          $size = (Get-Item "release_simplified/Amazon_Japan_Scraper_v3.1_Enhanced.exe").Length / 1MB
+        if (Test-Path "release_ultimate/Amazon_Japan_Scraper_v4.0_Ultimate.exe") {
+          Write-Host "✅ Ultimate v4.0 executable built successfully"
+          $size = (Get-Item "release_ultimate/Amazon_Japan_Scraper_v4.0_Ultimate.exe").Length / 1MB
           Write-Host "📊 File size: $([math]::Round($size, 1)) MB"
         } else {
           Write-Host "❌ Simplified executable not found"
