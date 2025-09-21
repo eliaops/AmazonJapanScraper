@@ -45,7 +45,7 @@ jobs:
         
     - name: Build ultimate executable
       run: |
-        python build_ultimate_safe.py
+        python build_ultimate.py
         
     - name: Debug - List dist directory
       run: |
