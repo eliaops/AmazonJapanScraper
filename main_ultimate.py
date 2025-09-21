@@ -134,7 +134,9 @@ class UltimateAmazonScraper:
         
         try:
             while self.is_searching:
+                # 检查停止条件：stop_flag()返回True表示继续搜索，False表示停止
                 if stop_flag and not stop_flag():
+                    self.is_searching = False  # 重要：设置状态为False以退出while循环
                     break
                 
                 if progress_callback:
@@ -165,6 +167,7 @@ class UltimateAmazonScraper:
                     if consecutive_empty_pages >= max_consecutive_empty:
                         if progress_callback:
                             progress_callback(f"⚠️ 连续 {max_consecutive_empty} 页无新产品，搜索可能已完成")
+                        self.is_searching = False  # 设置状态为False以退出while循环
                         break
                 else:
                     all_products.extend(unique_products)
@@ -410,20 +413,22 @@ class UltimateAmazonScraper:
     def _get_seller_info_ultimate(self, product_url):
         """终极版卖家信息提取"""
         try:
-            # 处理赞助商品链接，尝试提取真实产品URL
+            # 跳过赞助商品链接，避免重定向导致的挂起问题
             if '/sspa/click' in product_url or '/gp/slredirect/' in product_url:
-                # 对于赞助商品，先尝试访问获取重定向后的真实URL
-                try:
-                    response = self.session.get(product_url, timeout=10, allow_redirects=True)
-                    actual_url = response.url
-                    if '/dp/' in actual_url or '/gp/product/' in actual_url:
-                        product_url = actual_url
-                except:
-                    # 如果重定向失败，尝试从原URL中提取ASIN
-                    pass
+                return {
+                    'seller_name': '赞助商品',
+                    'seller_url': '',
+                    'business_name': '',
+                    'phone': '',
+                    'address': '',
+                    'representative_name': '',
+                    'store_name': '',
+                    'email': '',
+                    'fax': ''
+                }
             
             # 第一步：获取产品页面
-            response = self.session.get(product_url, timeout=15)
+            response = self.session.get(product_url, timeout=10)  # 减少超时时间
             response.raise_for_status()
             
             soup = BeautifulSoup(response.content, 'html.parser')
@@ -1166,7 +1171,7 @@ class UltimateScraperGUI:
             self.scraper.unlimited_search(
                 keyword=keyword,
                 progress_callback=self.update_progress,
-                stop_flag=lambda: self.is_searching,
+                stop_flag=lambda: self.is_searching and self.scraper.is_searching,
                 save_callback=self.log_message
             )
         except Exception as e:
