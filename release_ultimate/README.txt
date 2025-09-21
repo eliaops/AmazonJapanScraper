@@ -1,58 +1,58 @@
-# Amazon Japan Scraper v4.0 - 终极版
+# Amazon Japan Scraper v4.0 - Ultimate Version
 
-## 🚀 v4.0 终极版特性
+## v4.0 Ultimate Features
 
-### 🎯 核心改进
-- 🔍 扩大关键词搜索范围，支持更多小商品类别
-- ♾️ 无限制连续搜索，想搜多久搜多久
-- 💾 实时保存功能，一边搜索一边保存数据
-- 🧠 四层智能卖家信息提取算法
-- 🖥️ 支持后台运行，可以离开桌面
+### Core Improvements
+- Expanded keyword search range, supports more small products
+- Unlimited continuous search, search as long as you want
+- Real-time save function, search and save at the same time
+- Four-layer intelligent seller information extraction algorithm
+- Support background running, can leave the desktop
 
-### 🔍 搜索能力提升
-- 支持任何商品关键词：手机壳、数据线、小商品等
-- 多种搜索策略：默认、分类、品牌、价格区间
-- 智能去重，避免重复数据
-- 扩展产品选择器，覆盖更多商品类型
+### Search Capability Enhancement
+- Support any product keywords: phone cases, data cables, small products, etc.
+- Multiple search strategies: default, category, brand, price range
+- Intelligent deduplication, avoid duplicate data
+- Extended product selectors, covering more product types
 
-### 💾 数据管理
-- 每50个产品自动保存一次
-- 同时生成Excel和CSV格式
-- 数据保存在amazon_data文件夹
-- 支持断点续传，不怕意外中断
+### Data Management
+- Auto-save every 50 products
+- Generate both Excel and CSV formats
+- Data saved in amazon_data folder
+- Support breakpoint resume, not afraid of accidental interruption
 
-### 🧠 卖家信息提取算法
-1. **智能关键词提取** - 基于上下文分析
-2. **HTML结构提取** - 利用页面结构
-3. **正则表达式提取** - 精准模式匹配
-4. **深度文本分析** - 复杂文本处理
+### Seller Information Extraction Algorithm
+1. **Intelligent keyword extraction** - Based on context analysis
+2. **HTML structure extraction** - Using page structure
+3. **Regular expression extraction** - Precise pattern matching
+4. **Deep text analysis** - Complex text processing
 
-### 📊 提取字段
-- 公司名称 (Business Name)
-- 电话号码 (咨询用电话号码)
-- 详细地址 (包含邮编)
-- 代表人姓名 (购物代表的姓名)
-- 店铺名称
-- 电子邮箱
-- 传真号码
+### Extraction Fields
+- Company Name (Business Name)
+- Phone Number
+- Detailed Address (including postal code)
+- Representative Name
+- Store Name
+- Email Address
+- Fax Number
 
-### 🚀 使用方法
-1. 启动程序
-2. 输入任何商品关键词
-3. 点击"开始无限搜索"
-4. 可以最小化窗口，后台运行
-5. 数据自动保存，随时可以停止
+### Usage
+1. Start the program
+2. Enter any product keywords
+3. Click "Start Unlimited Search"
+4. Can minimize window, run in background
+5. Data automatically saved, can stop at any time
 
-### ⚡ 性能特点
-- 智能延迟控制，避免被封
-- 并发处理，提高效率
-- 内存优化，长时间稳定运行
-- 实时进度显示
+### Performance Features
+- Intelligent delay control, avoid being blocked
+- Concurrent processing, improve efficiency
+- Memory optimization, stable long-term operation
+- Real-time progress display
 
-### 📁 输出文件
-- 产品信息：包含标题、价格、评分等
-- 卖家信息：包含完整联系方式
-- 自动生成时间戳文件名
+### Output Files
+- Product information: including title, price, rating, etc.
+- Seller information: including complete contact information
+- Automatically generated timestamp file names
 
-版本: 4.0.0 - 终极版
-构建时间: 2024年
+Version: 4.0.0 - Ultimate Version
+Build Time: 2024

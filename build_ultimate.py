@@ -59,7 +59,10 @@ def build_ultimate():
     print(f"Command: {' '.join(cmd)}")
     
     try:
-        result = subprocess.run(cmd, check=True, capture_output=True, text=True)
+        # 设置正确的编码以避免Windows编码问题
+        encoding = 'utf-8' if sys.platform != 'win32' else 'cp1252'
+        result = subprocess.run(cmd, check=True, capture_output=True, text=True, 
+                              encoding=encoding, errors='replace')
         print("Build successful!")
         
         # 检查结果 - 跨平台兼容
@@ -167,10 +170,12 @@ def build_ultimate():
             print("ERROR: Executable not found after build")
             return False
     except subprocess.CalledProcessError as e:
-        print(f"Build error: {e.stderr}")
+        error_msg = str(e.stderr) if e.stderr else "Unknown build error"
+        print(f"Build error: {error_msg}")
         return False
     except Exception as e:
-        print(f"An unexpected error occurred: {e}")
+        error_msg = str(e).encode('ascii', errors='replace').decode('ascii')
+        print(f"An unexpected error occurred: {error_msg}")
         return False
 
 if __name__ == "__main__":
