@@ -28,9 +28,13 @@ def build_ultimate():
         print("ERROR: main_ultimate.py not found")
         return False
     
-    # 构建命令
+    # 构建命令 - 跨平台兼容
+    pyinstaller_cmd = 'pyinstaller'
+    if not os.path.exists('/usr/local/bin/pyinstaller') and os.path.exists('/Users/evan/Library/Python/3.9/bin/pyinstaller'):
+        pyinstaller_cmd = '/Users/evan/Library/Python/3.9/bin/pyinstaller'
+    
     cmd = [
-        '/Users/evan/Library/Python/3.9/bin/pyinstaller',
+        pyinstaller_cmd,
         '--onefile',
         '--windowed',
         '--name=Amazon_Japan_Scraper_v4.0_Ultimate',
@@ -47,6 +51,7 @@ def build_ultimate():
         '--exclude-module=scipy',
         '--exclude-module=numpy',
         '--clean',
+        '--noconfirm',
         'main_ultimate.py'
     ]
     
@@ -57,8 +62,12 @@ def build_ultimate():
         result = subprocess.run(cmd, check=True, capture_output=True, text=True)
         print("Build successful!")
         
-        # 检查结果
-        exe_name = 'Amazon_Japan_Scraper_v4.0_Ultimate'
+        # 检查结果 - 跨平台兼容
+        if sys.platform == 'win32':
+            exe_name = 'Amazon_Japan_Scraper_v4.0_Ultimate.exe'
+        else:
+            exe_name = 'Amazon_Japan_Scraper_v4.0_Ultimate'
+        
         exe_path = f'dist/{exe_name}'
         
         if os.path.exists(exe_path):
@@ -66,9 +75,29 @@ def build_ultimate():
             print(f"Executable created: {exe_path}")
             print(f"Size: {size_mb:.1f} MB")
             
+            # 验证文件类型 (仅在Windows上)
+            if sys.platform == 'win32':
+                try:
+                    with open(exe_path, 'rb') as f:
+                        header = f.read(2)
+                        if header == b'MZ':
+                            print("✅ Valid Windows executable (MZ header found)")
+                        else:
+                            print("⚠️ Warning: File may not be a valid Windows executable")
+                except Exception as e:
+                    print(f"⚠️ Could not verify file header: {e}")
+            
             # 创建发布目录
             os.makedirs('release_ultimate', exist_ok=True)
-            shutil.copy2(exe_path, f'release_ultimate/{exe_name}')
+            
+            # 复制文件，确保Windows版本有.exe扩展名
+            if sys.platform == 'win32':
+                release_name = 'Amazon_Japan_Scraper_v4.0_Ultimate.exe'
+            else:
+                release_name = 'Amazon_Japan_Scraper_v4.0_Ultimate'
+            
+            shutil.copy2(exe_path, f'release_ultimate/{release_name}')
+            print(f"Copied to release directory: release_ultimate/{release_name}")
             
             # 创建说明文件
             with open('release_ultimate/README.txt', 'w', encoding='utf-8') as f:

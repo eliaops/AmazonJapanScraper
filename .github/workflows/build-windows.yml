@@ -45,26 +45,33 @@ jobs:
         
     - name: Build ultimate executable
       run: |
-        pyinstaller --onefile --windowed --name=Amazon_Japan_Scraper_v4.0_Ultimate --hidden-import=tkinter --hidden-import=tkinter.ttk --hidden-import=requests --hidden-import=bs4 --hidden-import=pandas --hidden-import=openpyxl --hidden-import=concurrent.futures --hidden-import=urllib3 --exclude-module=matplotlib --exclude-module=scipy --clean main_ultimate.py
+        python build_ultimate.py
         
     - name: Debug - List dist directory
       run: |
         Write-Host "Contents of dist directory:"
         Get-ChildItem -Path "dist" -Force | Format-Table Name, Length, LastWriteTime
         
-    - name: Create release directory
+    - name: Verify build results
       run: |
-        New-Item -ItemType Directory -Force -Path "release_ultimate"
-        
-        # Try to find the executable with or without .exe extension
-        if (Test-Path "dist\Amazon_Japan_Scraper_v4.0_Ultimate.exe") {
-          Write-Host "Found .exe file, copying..."
-          Copy-Item "dist\Amazon_Japan_Scraper_v4.0_Ultimate.exe" "release_ultimate\Amazon_Japan_Scraper_v4.0_Ultimate.exe"
-        } elseif (Test-Path "dist\Amazon_Japan_Scraper_v4.0_Ultimate") {
-          Write-Host "Found file without .exe extension, copying and renaming..."
-          Copy-Item "dist\Amazon_Japan_Scraper_v4.0_Ultimate" "release_ultimate\Amazon_Japan_Scraper_v4.0_Ultimate.exe"
+        # The build script should have created the release_ultimate directory
+        if (Test-Path "release_ultimate") {
+          Write-Host "✅ Release directory created by build script"
+          Write-Host "📁 Contents of release_ultimate:"
+          Get-ChildItem -Path "release_ultimate" | Format-Table Name, Length, LastWriteTime
+          
+          # Check for the expected executable
+          $exePath = "release_ultimate\Amazon_Japan_Scraper_v4.0_Ultimate.exe"
+          if (Test-Path $exePath) {
+            Write-Host "✅ Windows executable found: $exePath"
+            $fileInfo = Get-Item $exePath
+            Write-Host "📊 File size: $([math]::Round($fileInfo.Length / 1MB, 1)) MB"
+          } else {
+            Write-Host "❌ Expected executable not found in release directory"
+            exit 1
+          }
         } else {
-          Write-Host "ERROR: No executable found in dist directory"
+          Write-Host "❌ Release directory not created by build script"
           exit 1
         }
         
@@ -100,14 +107,15 @@ jobs:
         "@
         $readmeContent | Out-File -FilePath "release_ultimate\README.txt" -Encoding UTF8
         
-    - name: Verify ultimate build
+    - name: Final verification
       run: |
         if (Test-Path "release_ultimate/Amazon_Japan_Scraper_v4.0_Ultimate.exe") {
-          Write-Host "✅ Ultimate v4.0 executable built successfully"
+          Write-Host "🎉 Ultimate v4.0 build completed successfully!"
           $size = (Get-Item "release_ultimate/Amazon_Japan_Scraper_v4.0_Ultimate.exe").Length / 1MB
-          Write-Host "📊 File size: $([math]::Round($size, 1)) MB"
+          Write-Host "📊 Final file size: $([math]::Round($size, 1)) MB"
+          Write-Host "✅ Ready for distribution"
         } else {
-          Write-Host "❌ Ultimate executable not found"
+          Write-Host "❌ Final verification failed - executable not found"
           exit 1
         }
         
