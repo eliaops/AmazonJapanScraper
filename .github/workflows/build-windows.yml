@@ -35,9 +35,9 @@ jobs:
         pip install -r requirements.txt
         pip install pyinstaller
         
-    - name: Test imports for simplified version
+    - name: Test imports for ultimate version
       run: |
-        python -c "import tkinter; import requests; import bs4; import pandas; import openpyxl; print('All imports successful for v3.0')"
+        python -c "import tkinter; import requests; import bs4; import pandas; import openpyxl; print('All imports successful for v4.0')"
         
     - name: Test ultimate version
       run: |
@@ -47,21 +47,38 @@ jobs:
       run: |
         pyinstaller --onefile --windowed --name=Amazon_Japan_Scraper_v4.0_Ultimate --hidden-import=tkinter --hidden-import=tkinter.ttk --hidden-import=requests --hidden-import=bs4 --hidden-import=pandas --hidden-import=openpyxl --hidden-import=concurrent.futures --hidden-import=urllib3 --exclude-module=matplotlib --exclude-module=scipy --clean main_ultimate.py
         
+    - name: Debug - List dist directory
+      run: |
+        Write-Host "Contents of dist directory:"
+        Get-ChildItem -Path "dist" -Force | Format-Table Name, Length, LastWriteTime
+        
     - name: Create release directory
       run: |
         New-Item -ItemType Directory -Force -Path "release_ultimate"
-        Copy-Item "dist\Amazon_Japan_Scraper_v4.0_Ultimate.exe" "release_ultimate\"
+        
+        # Try to find the executable with or without .exe extension
+        if (Test-Path "dist\Amazon_Japan_Scraper_v4.0_Ultimate.exe") {
+          Write-Host "Found .exe file, copying..."
+          Copy-Item "dist\Amazon_Japan_Scraper_v4.0_Ultimate.exe" "release_ultimate\Amazon_Japan_Scraper_v4.0_Ultimate.exe"
+        } elseif (Test-Path "dist\Amazon_Japan_Scraper_v4.0_Ultimate") {
+          Write-Host "Found file without .exe extension, copying and renaming..."
+          Copy-Item "dist\Amazon_Japan_Scraper_v4.0_Ultimate" "release_ultimate\Amazon_Japan_Scraper_v4.0_Ultimate.exe"
+        } else {
+          Write-Host "ERROR: No executable found in dist directory"
+          exit 1
+        }
         
     - name: Create README for release
       run: |
         $readmeContent = @"
-        # Amazon Japan Scraper v3.0 - 简化高性能版
+        # Amazon Japan Scraper v4.0 - 终极版
 
-        ## 🎉 重大更新
-        - 简化业务逻辑，移除复杂分类系统
-        - 分批处理，支持10000+产品不崩溃
-        - 内存优化，稳定运行大规模数据
-        - 直接关键词搜索，更符合用户习惯
+        ## 🚀 v4.0 终极版特性
+        - 🔍 扩大关键词搜索范围，支持更多小商品
+        - ♾️ 无限制连续搜索，想搜多久搜多久
+        - 💾 实时保存功能，一边搜索一边保存数据
+        - 🧠 四层智能卖家信息提取算法
+        - 🖥️ 支持后台运行，可以离开桌面
 
         ## 🚀 使用方法
         1. 双击运行程序
@@ -81,23 +98,23 @@ jobs:
 
         版本: 3.0.0 - 简化高性能版
         "@
-        $readmeContent | Out-File -FilePath "release_simplified\README.txt" -Encoding UTF8
+        $readmeContent | Out-File -FilePath "release_ultimate\README.txt" -Encoding UTF8
         
-    - name: Verify simplified build
+    - name: Verify ultimate build
       run: |
         if (Test-Path "release_ultimate/Amazon_Japan_Scraper_v4.0_Ultimate.exe") {
           Write-Host "✅ Ultimate v4.0 executable built successfully"
           $size = (Get-Item "release_ultimate/Amazon_Japan_Scraper_v4.0_Ultimate.exe").Length / 1MB
           Write-Host "📊 File size: $([math]::Round($size, 1)) MB"
         } else {
-          Write-Host "❌ Simplified executable not found"
+          Write-Host "❌ Ultimate executable not found"
           exit 1
         }
         
-    - name: Upload simplified build artifacts
+    - name: Upload ultimate build artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: Amazon-Japan-Scraper-v3.1-Enhanced
+        name: Amazon-Japan-Scraper-v4.0-Ultimate
         path: release_simplified/
         retention-days: 30
         

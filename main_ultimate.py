@@ -874,15 +874,58 @@ class UltimateAmazonScraper:
         
         return cleaned
     
+    def _get_column_mappings(self):
+        """获取中文列名映射"""
+        # 产品信息列名中文映射
+        product_columns_mapping = {
+            'asin': 'ASIN编号',
+            'title': '产品标题',
+            'price': '价格',
+            'rating': '评分',
+            'review_count': '评价数量',
+            'image_url': '图片链接',
+            'url': '产品链接',
+            'extracted_at': '提取时间'
+        }
+        
+        # 卖家信息列名中文映射
+        seller_columns_mapping = {
+            'seller_name': '卖家名称',
+            'seller_url': '卖家链接',
+            'business_name': '公司名称',
+            'phone': '电话号码',
+            'address': '地址',
+            'representative': '代表人姓名',
+            'store_name': '店铺名称',
+            'email': '电子邮箱',
+            'fax': '传真号码',
+            'product_title': '关联产品标题',
+            'product_url': '关联产品链接',
+            'product_asin': '关联产品ASIN',
+            'extracted_at': '提取时间'
+        }
+        
+        return product_columns_mapping, seller_columns_mapping
+    
     def _save_data_realtime(self, products, sellers, save_callback=None):
         """实时保存数据"""
         try:
             if not products:
                 return
             
-            # 创建DataFrame
+            # 创建DataFrame并重命名列名为中文
             products_df = pd.DataFrame(products)
             sellers_df = pd.DataFrame(sellers) if sellers else pd.DataFrame()
+            
+            # 获取中文列名映射
+            product_columns_mapping, seller_columns_mapping = self._get_column_mappings()
+            
+            # 重命名列名
+            if not products_df.empty:
+                products_df = products_df.rename(columns=product_columns_mapping)
+            
+            if not sellers_df.empty:
+                sellers_df = sellers_df.rename(columns=seller_columns_mapping)
             
             # 保存到Excel
             with pd.ExcelWriter(self.current_save_file, engine='openpyxl') as writer:
@@ -902,9 +945,19 @@ class UltimateAmazonScraper:
             if not products:
                 return
             
-            # 创建DataFrame
+            # 创建DataFrame并重命名列名为中文
             products_df = pd.DataFrame(products)
             sellers_df = pd.DataFrame(sellers) if sellers else pd.DataFrame()
+            
+            # 获取中文列名映射
+            product_columns_mapping, seller_columns_mapping = self._get_column_mappings()
+            
+            # 重命名列名
+            if not products_df.empty:
+                products_df = products_df.rename(columns=product_columns_mapping)
+            
+            if not sellers_df.empty:
+                sellers_df = sellers_df.rename(columns=seller_columns_mapping)
             
             # 保存到Excel
             with pd.ExcelWriter(self.current_save_file, engine='openpyxl') as writer:
@@ -912,7 +965,7 @@ class UltimateAmazonScraper:
                 if not sellers_df.empty:
                     sellers_df.to_excel(writer, sheet_name='卖家信息', index=False)
             
-            # 同时保存CSV格式
+            # 同时保存CSV格式（也使用中文列名）
             csv_file = self.current_save_file.replace('.xlsx', '_products.csv')
             products_df.to_csv(csv_file, index=False, encoding='utf-8-sig')
             
