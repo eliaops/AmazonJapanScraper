@@ -286,7 +286,8 @@ class UltimateAmazonScraper:
                 return None
             
             product_url = urljoin(self.base_url, link_element.get('href', ''))
-            if not product_url or ('/dp/' not in product_url and '/gp/product/' not in product_url):
+            # 修复：接受更多类型的产品链接，包括赞助商品链接
+            if not product_url or not any(pattern in product_url for pattern in ['/dp/', '/gp/product/', '/sspa/click', '/gp/slredirect/']):
                 return None
             
             # 多种标题提取策略
@@ -309,19 +310,22 @@ class UltimateAmazonScraper:
             
             # 多种价格提取策略
             price_selectors = [
-                '.a-price-whole',
                 '.a-price .a-offscreen',
+                '.a-price-whole',
+                '.a-price-range .a-offscreen',
+                '.a-price-symbol + .a-price-whole',
+                '.s-price-instructions-style .a-price .a-offscreen',
                 '.a-price-range',
-                '.a-price-symbol',
-                '.s-price-instructions-style .a-price'
+                'span[data-a-color="price"]'
             ]
             
             price = "价格未知"
             for selector in price_selectors:
                 price_element = product_element.select_one(selector)
                 if price_element:
-                    price = price_element.get_text(strip=True)
-                    if price:
+                    price_text = price_element.get_text(strip=True)
+                    if price_text and any(char.isdigit() for char in price_text):
+                        price = price_text
                         break
             
             # 提取评分和评价数
@@ -406,6 +410,18 @@ class UltimateAmazonScraper:
     def _get_seller_info_ultimate(self, product_url):
         """终极版卖家信息提取"""
         try:
+            # 处理赞助商品链接，尝试提取真实产品URL
+            if '/sspa/click' in product_url or '/gp/slredirect/' in product_url:
+                # 对于赞助商品，先尝试访问获取重定向后的真实URL
+                try:
+                    response = self.session.get(product_url, timeout=10, allow_redirects=True)
+                    actual_url = response.url
+                    if '/dp/' in actual_url or '/gp/product/' in actual_url:
+                        product_url = actual_url
+                except:
+                    # 如果重定向失败，尝试从原URL中提取ASIN
+                    pass
+            
             # 第一步：获取产品页面
             response = self.session.get(product_url, timeout=15)
             response.raise_for_status()
@@ -415,14 +431,22 @@ class UltimateAmazonScraper:
             # 查找卖家信息的多种策略
             seller_info = {}
             
-            # 策略1：查找"出售方"信息
+            # 策略1：查找"出售方"信息 - 增强版
             seller_selectors = [
                 '#merchant-info',
                 '#merchantInfoFeature_feature_div',
+                '#tabular-buybox',
+                '#buybox',
                 '.a-section.a-spacing-small:contains("出售方")',
                 '.a-section:contains("販売")',
                 '.a-section:contains("Sold by")',
+                '.a-section:contains("销售")',
                 '#tabular-buybox .a-section',
+                '#buybox-see-all-buying-choices',
+                '.a-box-group .a-box',
+                'span:contains("出售方")',
+                'span:contains("販売")',
+                'span:contains("Sold by")'
             ]
             
             seller_name = None
